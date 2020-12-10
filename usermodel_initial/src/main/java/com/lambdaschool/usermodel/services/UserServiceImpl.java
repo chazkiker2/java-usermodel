@@ -1,7 +1,9 @@
 package com.lambdaschool.usermodel.services;
 
+
 import com.lambdaschool.usermodel.models.Role;
 import com.lambdaschool.usermodel.models.User;
+import com.lambdaschool.usermodel.models.UserRoles;
 import com.lambdaschool.usermodel.models.Useremail;
 import com.lambdaschool.usermodel.repository.UserRepository;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -12,174 +14,169 @@ import javax.persistence.EntityNotFoundException;
 import java.util.ArrayList;
 import java.util.List;
 
+
+
 /**
  * Implements UserService Interface
  */
 @Transactional
 @Service(value = "userService")
 public class UserServiceImpl
-        implements UserService
-{
-    /**
-     * Connects this service to the User table.
-     */
-    @Autowired
-    private UserRepository userrepos;
+		implements UserService {
+	/**
+	 * Connects this service to the User table.
+	 */
+	@Autowired
+	private UserRepository userrepos;
 
-    /**
-     * Connects this service to the Role table
-     */
-    @Autowired
-    private RoleService roleService;
+	/**
+	 * Connects this service to the Role table
+	 */
+	@Autowired
+	private RoleService roleService;
 
+	@Override
+	public List<User> findAll() {
+		List<User> list = new ArrayList<>();
+		/*
+		 * findAll returns an iterator set.
+		 * iterate over the iterator set and add each element to an array list.
+		 */
+		userrepos.findAll()
+		         .iterator()
+		         .forEachRemaining(list::add);
+		return list;
+	}
 
-    public User findUserById(long id) throws
-            EntityNotFoundException
-    {
-        return userrepos.findById(id)
-                .orElseThrow(() -> new EntityNotFoundException("User id " + id + " not found!"));
-    }
+	@Override
+	public List<User> findByNameContaining(String username) {
+		return userrepos.findByUsernameContainingIgnoreCase(username.toLowerCase());
+	}
 
-    @Override
-    public List<User> findByNameContaining(String username)
-    {
-        return userrepos.findByUsernameContainingIgnoreCase(username.toLowerCase());
-    }
+	public User findUserById(long id)
+			throws
+			EntityNotFoundException {
+		return userrepos.findById(id)
+		                .orElseThrow(() -> new EntityNotFoundException("User id " + id + " not found!"));
+	}
 
-    @Override
-    public List<User> findAll()
-    {
-        List<User> list = new ArrayList<>();
-        /*
-         * findAll returns an iterator set.
-         * iterate over the iterator set and add each element to an array list.
-         */
-        userrepos.findAll()
-                .iterator()
-                .forEachRemaining(list::add);
-        return list;
-    }
+	@Override
+	public User findByName(String name) {
+		User uu = userrepos.findByUsername(name.toLowerCase());
+		if (uu == null) {
+			throw new EntityNotFoundException("User name " + name + " not found!");
+		}
+		return uu;
+	}
 
-    @Transactional
-    @Override
-    public void delete(long id)
-    {
-        userrepos.findById(id)
-                .orElseThrow(() -> new EntityNotFoundException("User id " + id + " not found!"));
-        userrepos.deleteById(id);
-    }
+	@Transactional
+	@Override
+	public void delete(long id) {
+		userrepos.findById(id)
+		         .orElseThrow(() -> new EntityNotFoundException("User id " + id + " not found!"));
+		userrepos.deleteById(id);
+	}
 
-    @Override
-    public User findByName(String name)
-    {
-        User uu = userrepos.findByUsername(name.toLowerCase());
-        if (uu == null)
-        {
-            throw new EntityNotFoundException("User name " + name + " not found!");
-        }
-        return uu;
-    }
+	@Transactional
+	@Override
+	public User save(User user) {
+		User newUser = new User();
 
-    @Transactional
-    @Override
-    public User save(User user)
-    {
-        User newUser = new User();
+		if (user.getUserid() != 0) {
+			userrepos.findById(user.getUserid())
+			         .orElseThrow(() -> new EntityNotFoundException("User id " + user.getUserid() + " not found!"));
+			newUser.setUserid(user.getUserid());
+		}
 
-        if (user.getUserid() != 0)
-        {
-            userrepos.findById(user.getUserid())
-                    .orElseThrow(() -> new EntityNotFoundException("User id " + user.getUserid() + " not found!"));
-            newUser.setUserid(user.getUserid());
-        }
+		newUser.setUsername(user.getUsername()
+		                        .toLowerCase());
+		newUser.setPassword(user.getPassword());
+		newUser.setPrimaryemail(user.getPrimaryemail()
+		                            .toLowerCase());
 
-        newUser.setUsername(user.getUsername()
-                                    .toLowerCase());
-        newUser.setPassword(user.getPassword());
-        newUser.setPrimaryemail(user.getPrimaryemail()
-                                        .toLowerCase());
+		newUser.getRoles()
+		       .clear();
+		//            Role newRole = roleService.findRoleById(r.getRoleid());
+		user.getRoles()
+		    .stream()
+		    .map(r -> roleService.findRoleById(r.getRole()
+		                                        .getRoleid()))
+		    .forEach(newRole -> newUser.getRoles()
+		                               .add(new UserRoles(
+				                               newUser,
+				                               newRole
+		                               )));
 
-        newUser.getRoles()
-                .clear();
-        for (Role r : user.getRoles())
-        {
-            Role newRole = roleService.findRoleById(r.getRoleid());
+		newUser.getUseremails()
+		       .clear();
+		for (Useremail ue : user.getUseremails()) {
+			newUser.getUseremails()
+			       .add(new Useremail(
+					       newUser,
+					       ue.getUseremail()
+			       ));
+		}
 
-            newUser.getRoles()
-                    .add(newRole);
-        }
+		return userrepos.save(newUser);
+	}
 
-        newUser.getUseremails()
-                .clear();
-        for (Useremail ue : user.getUseremails())
-        {
-            newUser.getUseremails()
-                    .add(new Useremail(newUser,
-                                       ue.getUseremail()));
-        }
+	@Transactional
+	@Override
+	public User update(
+			User user,
+			long id
+	) {
+		User currentUser = findUserById(id);
 
-        return userrepos.save(newUser);
-    }
+		if (user.getUsername() != null) {
+			currentUser.setUsername(user.getUsername()
+			                            .toLowerCase());
+		}
 
-    @Transactional
-    @Override
-    public User update(
-            User user,
-            long id)
-    {
-        User currentUser = findUserById(id);
+		if (user.getPassword() != null) {
+			currentUser.setPassword(user.getPassword());
+		}
 
-        if (user.getUsername() != null)
-        {
-            currentUser.setUsername(user.getUsername()
-                                            .toLowerCase());
-        }
+		if (user.getPrimaryemail() != null) {
+			currentUser.setPrimaryemail(user.getPrimaryemail()
+			                                .toLowerCase());
+		}
 
-        if (user.getPassword() != null)
-        {
-            currentUser.setPassword(user.getPassword());
-        }
+		if (user.getRoles()
+		        .size() > 0) {
+			currentUser.getRoles()
+			           .clear();
+			user.getRoles()
+			    .stream()
+			    .map(r -> roleService.findRoleById(r.getRole()
+			                                        .getRoleid()))
+			    .forEach(newRole -> currentUser.getRoles()
+			                                   .add(new UserRoles(
+					                                   currentUser,
+					                                   newRole
+			                                   )));
+		}
 
-        if (user.getPrimaryemail() != null)
-        {
-            currentUser.setPrimaryemail(user.getPrimaryemail()
-                                                .toLowerCase());
-        }
+		if (user.getUseremails()
+		        .size() > 0) {
+			currentUser.getUseremails()
+			           .clear();
+			for (Useremail ue : user.getUseremails()) {
+				currentUser.getUseremails()
+				           .add(new Useremail(
+						           currentUser,
+						           ue.getUseremail()
+				           ));
+			}
+		}
 
-        if (user.getRoles()
-                .size() > 0)
-        {
-            currentUser.getRoles()
-                    .clear();
-            for (Role r : user.getRoles())
-            {
-                Role newRole = roleService.findRoleById(r.getRoleid());
+		return userrepos.save(currentUser);
+	}
 
-                currentUser.getRoles()
-                        .add(newRole);
-            }
-        }
+	@Transactional
+	@Override
+	public void deleteAll() {
+		userrepos.deleteAll();
+	}
 
-        if (user.getUseremails()
-                .size() > 0)
-        {
-            currentUser.getUseremails()
-                    .clear();
-            for (Useremail ue : user.getUseremails())
-            {
-                currentUser.getUseremails()
-                        .add(new Useremail(currentUser,
-                                           ue.getUseremail()));
-            }
-        }
-
-        return userrepos.save(currentUser);
-    }
-
-    @Transactional
-    @Override
-    public void deleteAll()
-    {
-        userrepos.deleteAll();
-    }
 }
